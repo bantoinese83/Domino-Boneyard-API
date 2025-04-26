@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Domino Boneyard API Demo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 2rem;
+            background-color: #f5f5f5;
+        }
+        .domino-tile {
+            width: 70px;
+            height: 140px;
+            margin: 5px;
+            transition: transform 0.3s;
+            cursor: pointer;
+        }
+        .domino-tile:hover {
+            transform: translateY(-10px);
+        }
+        .hand {
+            min-height: 150px;
+            background-color: #deb887;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        #gameInfo {
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .btn-primary {
+            background-color: #6b5b95;
+            border-color: #6b5b95;
+        }
+        .btn-primary:hover {
+            background-color: #5d4d87;
+            border-color: #5d4d87;
+        }
+        .header {
+            background-color: #6b5b95;
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <h1>Domino Boneyard API Demo</h1>
+            <p class="lead">A simple demonstration of the Domino Boneyard API capabilities</p>
+            <a href="https://domino-boneyard-api.onrender.com/docs" target="_blank" class="btn btn-light">API Documentation</a>
+            <a href="https://github.com/bantoinese83/Domino-Boneyard-API" target="_blank" class="btn btn-light">GitHub Repository</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Domino Game Demo</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <button id="newGame" class="btn btn-primary">Create New Domino Set</button>
+                            <button id="drawTiles" class="btn btn-success" disabled>Draw 7 Tiles</button>
+                            <button id="shuffleTiles" class="btn btn-warning" disabled>Shuffle Tiles</button>
+                        </div>
+
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h4>Game Information</h4>
+                            </div>
+                            <div class="card-body">
+                                <pre id="gameInfo">No active game. Click "Create New Domino Set" to start.</pre>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h4>Your Hand</h4>
+                            </div>
+                            <div class="card-body hand" id="playerHand">
+                                <p class="text-center text-muted">No tiles drawn yet</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>API Response</h3>
+                    </div>
+                    <div class="card-body">
+                        <pre id="apiResponse" style="max-height: 500px; overflow-y: auto;">No API calls made yet</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-5 py-3 text-center text-muted bg-light">
+        <div class="container">
+            <p>This demo uses the <a href="https://domino-boneyard-api.onrender.com">Domino Boneyard API</a> - a RESTful API for building domino games.</p>
+        </div>
+    </footer>
+
+    <script>
+        // API URL
+        const API_URL = 'https://domino-boneyard-api.onrender.com';
+        
+        // Game state
+        let gameState = {
+            setId: null,
+            tilesRemaining: 0,
+            playerTiles: []
+        };
+
+        // DOM Elements
+        const gameInfoEl = document.getElementById('gameInfo');
+        const playerHandEl = document.getElementById('playerHand');
+        const apiResponseEl = document.getElementById('apiResponse');
+        const newGameBtn = document.getElementById('newGame');
+        const drawTilesBtn = document.getElementById('drawTiles');
+        const shuffleTilesBtn = document.getElementById('shuffleTiles');
+
+        // Event Listeners
+        newGameBtn.addEventListener('click', createNewGame);
+        drawTilesBtn.addEventListener('click', drawPlayerTiles);
+        shuffleTilesBtn.addEventListener('click', shuffleTiles);
+
+        // Create a new game
+        async function createNewGame() {
+            try {
+                playerHandEl.innerHTML = '<p class="text-center text-muted">No tiles drawn yet</p>';
+                gameInfoEl.textContent = 'Creating new domino set...';
+                
+                const response = await fetch(`${API_URL}/api/set/new`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'double-six',
+                        sets: 1
+                    })
+                });
+                
+                const data = await response.json();
+                displayApiResponse(data);
+                
+                gameState.setId = data.set_id;
+                gameState.tilesRemaining = data.tiles_remaining;
+                gameState.playerTiles = [];
+                
+                updateGameInfo();
+                enableGameButtons();
+                
+            } catch (error) {
+                console.error('Error creating game:', error);
+                gameInfoEl.textContent = `Error creating game: ${error.message}`;
+            }
+        }
+
+        // Draw tiles for the player
+        async function drawPlayerTiles() {
+            if (!gameState.setId) return;
+            
+            try {
+                gameInfoEl.textContent = 'Drawing tiles...';
+                
+                const count = 7;
+                const response = await fetch(`${API_URL}/api/set/${gameState.setId}/draw`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ count })
+                });
+                
+                const data = await response.json();
+                displayApiResponse(data);
+                
+                if (data.success) {
+                    gameState.playerTiles = data.tiles_drawn;
+                    gameState.tilesRemaining = data.tiles_remaining;
+                    
+                    displayTiles(data.tiles_drawn, data);
+                    updateGameInfo();
+                    
+                    // Disable draw button if no tiles remain
+                    if (gameState.tilesRemaining === 0) {
+                        drawTilesBtn.disabled = true;
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error drawing tiles:', error);
+                gameInfoEl.textContent = `Error drawing tiles: ${error.message}`;
+            }
+        }
+
+        // Shuffle the tiles
+        async function shuffleTiles() {
+            if (!gameState.setId) return;
+            
+            try {
+                gameInfoEl.textContent = 'Shuffling tiles...';
+                
+                const response = await fetch(`${API_URL}/api/set/${gameState.setId}/shuffle`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                displayApiResponse(data);
+                
+                if (data.success) {
+                    gameState.tilesRemaining = data.tiles_remaining;
+                    gameState.playerTiles = [];
+                    playerHandEl.innerHTML = '<p class="text-center text-muted">Tiles returned to boneyard and shuffled</p>';
+                    updateGameInfo();
+                    
+                    // Re-enable draw button after shuffle
+                    drawTilesBtn.disabled = false;
+                }
+                
+            } catch (error) {
+                console.error('Error shuffling tiles:', error);
+                gameInfoEl.textContent = `Error shuffling tiles: ${error.message}`;
+            }
+        }
+
+        // Display tiles in the player's hand
+        function displayTiles(tiles, data) {
+            playerHandEl.innerHTML = '';
+            
+            // Check if we have image URLs in the response
+            if (data.tiles_with_images) {
+                data.tiles_with_images.forEach(tile => {
+                    const img = document.createElement('img');
+                    img.src = tile.front_image_url;
+                    img.alt = `Domino ${tile.id}`;
+                    img.className = 'domino-tile';
+                    img.dataset.tileId = tile.id;
+                    playerHandEl.appendChild(img);
+                });
+            } else {
+                // Fallback if images aren't available
+                tiles.forEach(tile => {
+                    const div = document.createElement('div');
+                    div.className = 'domino-tile border text-center pt-5';
+                    div.textContent = tile;
+                    div.dataset.tileId = tile;
+                    playerHandEl.appendChild(div);
+                });
+            }
+        }
+
+        // Update game information display
+        function updateGameInfo() {
+            gameInfoEl.textContent = gameState.setId ? 
+                `Game ID: ${gameState.setId}\nTiles Remaining: ${gameState.tilesRemaining}\nPlayer Tiles: ${gameState.playerTiles.join(', ')}` : 
+                'No active game';
+        }
+
+        // Display API response
+        function displayApiResponse(data) {
+            apiResponseEl.textContent = JSON.stringify(data, null, 2);
+        }
+
+        // Enable game buttons
+        function enableGameButtons() {
+            drawTilesBtn.disabled = false;
+            shuffleTilesBtn.disabled = false;
+        }
+    </script>
+</body>
+</html> 
