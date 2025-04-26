@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    environment:
+      - DOMINO_ENV=production
+      - DOMINO_USE_REDIS=true
+      - DOMINO_REDIS_URL=redis://redis:6379/0
+      - DOMINO_CORS_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  redis_data: 
